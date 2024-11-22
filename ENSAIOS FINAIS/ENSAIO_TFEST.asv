@@ -1,0 +1,149 @@
+% EXPERIMENTAL DE SISTEMAS DE CONTROLE REALIMENTADO
+% Identificação dos sistemas
+% 
+% Alunos:
+% Beatriz Martins Gomes Silva           (12121EBI003)
+% Júlia Miranda Brito                   (12121EBI020)
+% Luiz Felipe Spinola Silva             (12121EBI001) 
+%
+% Professora: Gabriela Vieira Lima
+%
+% Data: 05/10/2024
+
+clc; clear; close all;
+
+%Variáveis Básicas
+
+condIni = 26.05;                                                            %Temperatura Ambiente
+
+temperatura = load("ENSAIO 3.2.txt").';                                     %Carregando sinal
+temperatura = temperatura - 26.05;                                          %Delta de temperatura (comprimento do vetor: 2171)
+
+tSample = 0.4;                                                              %Período de amostragem (s)
+
+%Filtro de Média Móvel
+
+kernelSize = 5;
+kernel = (1/kernelSize)*ones(1,kernelSize);
+
+tempMediamovel = filter(kernel,1,temperatura);
+
+%EXTRA: Comparação de identificação utilizando função tfest
+
+t = (0:tSample:(1071)*tSample).';                                          %Vetor de tempo
+u = cat(2, zeros(1,100),255.*(ones(1,972))).';                             %Sinal de Entrada
+y = tempMediamovel(1100:2171).';                                           %Sinal de Saída
+y = y -y(1);
+dT = 0.4000;                                                               %Tempo de Amostragem
+
+figure()
+plot(t,u,t,y)
+title('Sinal Coletado');
+legend('Entrada','Saída');
+xlim([-20,400])
+
+%Identificação do sistema
+
+data = iddata(y,u,dT);                                                      %Ordem: Saída, entrada, tempo de amostragem
+np = 1;                                                                     %Número de polos
+nz = 0;                                                                     %Número de polos
+
+ft_ident = tfest(data,np,nz, 17.6);                                         %Último parâmetro: atraso
+
+y_sim = lsim(ft_ident,u,t);
+
+% Resultados
+figure()
+plot(t,y,'b',t,y_sim,'r',t,u, 'g');
+legend('Dados Originais','Modelo')
+ylim([-40,10])
+
+%% Extra2: Função de transferência da planta de temperatura
+
+timeVector = (0:tSample:(1299)*tSample).';                                  %Vetor de tempo
+inputVector = cat(2, zeros(1,100),255.*(ones(1,1200))).';                   %Sinal de entrada
+outputVector = cat(2, zeros(1,100), tempMediamovel(1:1200)).';              %Sinal de saída
+timeSample = 0.400;                                                         %Vetor de tempo
+
+figure()
+plot(timeVector,inputVector,timeVector,outputVector)
+title('Sinal Coletado');
+legend('Entrada','Saída');
+xlim([-20,500])
+ylim([0,50])
+
+%Identificação do sistema
+
+data2 = iddata(outputVector,inputVector,timeSample);                        %Ordem: Saída, entrada, tempo de amostragem
+np = 2;                                                                     %Número de polos
+nz = 1;                                                                     %Número de Zeros
+
+ft_ident2 = tfest(data2,np,nz, NaN);                                        %Último parâmetro: atraso
+
+y_sim2 = lsim(ft_ident2,inputVector,timeVector);
+
+% Resultados
+figure()
+plot(timeVector,outputVector,'b',timeVector,y_sim2,'r',timeVector,inputVector, 'g');
+legend('Dados Originais','Modelo')
+ylim([-5,50])
+
+%% Extra 3: Função de transferência da planta de fluxo
+
+fluxo = load("FLUXO SCR.txt").';
+outputFluxo = fluxo./0.2;                                                   %Pulsos por segundo
+
+passoFluxo = 0.2000;                                                        %Tempo de amostragem
+tempoFluxo = (0:passoFluxo:(length(fluxo)+99)*passoFluxo);                  %Vetor de tempo
+inputFluxo = cat(2, zeros(1,100),255.*(ones(1,457))).';                     %Sinal de entrada
+outputFluxo = cat(2, zeros(1,100), outputFluxo).';                          %(Sinal de saída)
+
+figure()
+plot(tempoFluxo,inputFluxo,tempoFluxo,outputFluxo)
+title('Sinal Coletado');
+legend('Entrada','Saída');
+xlim([0,120])
+ylim([0,80])
+
+%Identificação do sistema
+
+dataFluxo = iddata(outputFluxo,inputFluxo,passoFluxo);                      %Ordem: Saída, entrada, tempo de amostragem
+np = 1;                                                                     %Número de polos
+nz = 0;                                                                     %Número de zeros
+
+ft_identFluxo = tfest(dataFluxo,np,nz, NaN);                                %Último parâmetro: atraso
+
+y_simFluxo = lsim(ft_identFluxo,inputFluxo,tempoFluxo);
+
+% Resultados
+figure()
+plot(tempoFluxo,outputFluxo,'b',tempoFluxo,y_simFluxo,'r',tempoFluxo,inputFluxo, 'g');
+legend('Dados Originais','Modelo')
+ylim([-5,80])
+
+%% Projeto de controlador via Sisotool
+
+G_t = zpk(ft_ident2);
+G_f = zpk(ft_identFluxo);
+G_tf = zpk(ft_ident);
+
+%sisotool(G_t)
+%sisotool(G_f)
+
+s = tf('s');
+% C_t = exp(-12*s)*9.0403*((s^2)+(0.000492*s)+(5.32e-05))/(s*(s+0.0222));
+C_f = 0.33461*(s+2.86)/(s);
+
+%C_t = 1404*((s^2)+(0.005*s)+(5.39e-05))/(s*(s+1));
+
+C_t = 8.6*((s^2)+(0.00492*s)+(5.32e-05))/(s*(s+0.0222));
+%C_f = 5.0664*((s^2)+(2.31*s)+(1.78))/(s*(s+6));
+
+T = 0.4;
+
+Cd_t = c2d(C_t, 50, 'tustin');
+Cd_f = c2d(C_f, 0.4, 'tustin');
+
+%% Encontrando Equação de Diferenças
+
+
