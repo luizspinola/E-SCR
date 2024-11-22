@@ -1,0 +1,60 @@
+% ENSAIO  TEMPERATURA
+clear all;
+clc;
+close all;
+
+% Carregar o arquivo txt
+temp = load("TEMP SCR.txt");
+
+% Subtraindo temperatura ambiente
+temperatura = temp - 26.05; % temp(0) = 26,05
+
+% Definir o intervalo de tempo (em segundos)
+% 400 ms
+passo = 0.4; 
+
+% Criar o vetor de tempo
+tempo = (0:passo:(length(temperatura)-1)*passo)'; 
+
+% Exibir os primeiros 10 valores de tempo e temperatura 
+%disp('Tempo (s)  Temperatura (°C):');
+%disp([tempo(1:10), temperatura(1:10)]);
+
+% Gráficos Tempo x Temperatura
+figure(1);
+plot(tempo, temperatura, 'b');
+xlabel('Tempo (s)');
+ylabel('Temperatura (°C)');
+title('Gráfico de Temperatura');
+
+% disp(length(temperatura));
+% tamanho do vetor temperatura = 1168
+% Encontrar função de transferência Gt(s)
+
+
+media = mean(temperatura(900:1168));
+% media = 38.4865 
+disp(media);
+
+% Valor do ganho K 
+k = 38.4865;
+
+% Valor da constante Tau
+Amplitude = (38.4865 * 63.2)/100;
+disp(Amplitude); % 24.3235
+
+
+hold on
+
+yline(Amplitude)
+
+Tau = 212;
+
+% Função de transferência de 1° Ordem
+s=tf('s');
+
+G_T = k/(Tau*s + 1);
+G_T
+
+
+
